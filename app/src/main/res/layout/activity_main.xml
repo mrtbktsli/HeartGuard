@@ -2,99 +2,169 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:spacing="8dp">
 
+        <!-- Başlık -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="❤️ HeartGuard"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Nabız Göstergesi -->
+        <TextView
+            android:id="@+id/tvHeartRate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nabız: -- bpm"
             android:textSize="28sp"
             android:textStyle="bold"
-            android:textColor="#D32F2F"
             android:gravity="center"
-            android:paddingBottom="4dp"/>
+            android:textColor="#E53935"
+            android:layout_marginBottom="4dp"/>
 
+        <!-- Durum -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="İzleme başlatılmadı"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Servis Switch -->
+        <Switch
+            android:id="@+id/swService"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="İzlemeyi Başlat/Durdur"
+            android:textSize="16sp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Cihaz Seçimi -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Kalp Ritmi İzleme"
+            android:text="Bluetooth Cihazı"
+            android:textStyle="bold"
             android:textSize="14sp"
-            android:textColor="#757575"
-            android:gravity="center"
-            android:paddingBottom="20dp"/>
+            android:layout_marginBottom="4dp"/>
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/tvSelectedDevice"
             android:layout_width="match_parent"
-            android:layout_height="90dp"
-            android:background="#FFEBEE"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:layout_marginBottom="20dp">
+            android:layout_height="wrap_content"
+            android:text="Cihaz seçilmedi"
+            android:textSize="13sp"
+            android:textColor="#666666"
+            android:layout_marginBottom="8dp"/>
 
-            <TextView
-                android:id="@+id/tvHeartRate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Nabız: -- bpm"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="#C62828"/>
+        <Button
+            android:id="@+id/btnSelectDevice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cihaz Tara ve Seç"
+            android:layout_marginBottom="16dp"/>
 
-            <TextView
-                android:id="@+id/tvStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Bekleniyor..."
-                android:textSize="13sp"
-                android:textColor="#757575"/>
-        </LinearLayout>
+        <!-- Ayırıcı -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDDDDD"
+            android:layout_marginBottom="16dp"/>
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Çocuğun Adı" android:textStyle="bold" android:textColor="#424242" android:paddingBottom="4dp"/>
-        <EditText android:id="@+id/etChildName" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:hint="Örn: Zeynep"
-            android:background="#FFFFFF" android:padding="12dp" android:layout_marginBottom="12dp"/>
+        <!-- Çocuk Adı -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Çocuğun Adı"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp"/>
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Ebeveyn Telefon" android:textStyle="bold" android:textColor="#424242" android:paddingBottom="4dp"/>
-        <EditText android:id="@+id/etParentPhone" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:hint="Örn: 05551234567"
-            android:inputType="phone" android:background="#FFFFFF" android:padding="12dp" android:layout_marginBottom="12dp"/>
+        <EditText
+            android:id="@+id/etChildName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Örn: Ayşe"
+            android:inputType="textPersonName"
+            android:layout_marginBottom="12dp"/>
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Üst Limit (bpm)" android:textStyle="bold" android:textColor="#424242" android:paddingBottom="4dp"/>
-        <EditText android:id="@+id/etUpperLimit" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:hint="Örn: 160"
-            android:inputType="number" android:background="#FFFFFF" android:padding="12dp" android:layout_marginBottom="12dp"/>
+        <!-- Ebeveyn Telefonu -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ebeveyn Telefon Numarası"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp"/>
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Alt Limit (bpm)" android:textStyle="bold" android:textColor="#424242" android:paddingBottom="4dp"/>
-        <EditText android:id="@+id/etLowerLimit" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:hint="Örn: 40"
-            android:inputType="number" android:background="#FFFFFF" android:padding="12dp" android:layout_marginBottom="20dp"/>
+        <EditText
+            android:id="@+id/etParentPhone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Örn: 05551234567"
+            android:inputType="phone"
+            android:layout_marginBottom="12dp"/>
 
-        <Button android:id="@+id/btnSave" android:layout_width="match_parent"
-            android:layout_height="50dp" android:text="💾 Kaydet"
-            android:backgroundTint="#1976D2" android:textColor="#FFFFFF" android:layout_marginBottom="10dp"/>
+        <!-- Üst Limit -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Üst Nabız Limiti (bpm)"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp"/>
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="60dp"
-            android:background="#E8F5E9" android:orientation="horizontal"
-            android:gravity="center_vertical" android:padding="12dp" android:layout_marginBottom="10dp">
-            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="🟢 İzlemeyi Başlat"
-                android:textSize="15sp" android:textStyle="bold" android:textColor="#2E7D32"/>
-            <Switch android:id="@+id/swService" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
-        </LinearLayout>
+        <EditText
+            android:id="@+id/etUpperLimit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Örn: 160"
+            android:inputType="number"
+            android:layout_marginBottom="12dp"/>
 
-        <Button android:id="@+id/btnTestSms" android:layout_width="match_parent"
-            android:layout_height="50dp" android:text="📱 Test SMS Gönder"
-            android:backgroundTint="#FF6F00" android:textColor="#FFFFFF"/>
+        <!-- Alt Limit -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alt Nabız Limiti (bpm)"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:layout_marginBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/etLowerLimit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Örn: 40"
+            android:inputType="number"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Butonlar -->
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Kaydet"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnTestSms"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Test SMS Gönder"
+            android:layout_marginBottom="16dp"/>
 
     </LinearLayout>
 </ScrollView>
