@@ -1,14 +1,20 @@
 package com.heartguard;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.telephony.SmsManager;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -16,6 +22,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvStatus, tvHeartRate;
     private Switch swService;
     private SharedPreferences prefs;
+    private static final int PERM_REQUEST = 100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
         swService     = findViewById(R.id.swService);
 
         loadSettings();
-        requestPermissions();
+        requestAllPermissions();
 
         findViewById(R.id.btnSave).setOnClickListener(v -> saveSettings());
         findViewById(R.id.btnTestSms).setOnClickListener(v -> testSms());
@@ -68,12 +75,57 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, "Kaydedildi ✓", Toast.LENGTH_SHORT).show();
     }
 
+    // SMS iznini kontrol et ve direkt gönder (servise gerek yok)
     private void testSms() {
         saveSettings();
-        Intent i = new Intent(this, HeartMonitorService.class);
-        i.setAction("TEST_SMS");
-        ContextCompat.startForegroundService(this, i);
-        Toast.makeText(this, "Test SMS gönderiliyor...", Toast.LENGTH_SHORT).show();
+
+        // Önce SMS izni var mı kontrol et
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+                != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "SMS izni yok! İzin veriliyor...", Toast.LENGTH_LONG).show();
+            ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.SEND_SMS}, PERM_REQUEST);
+            return;
+        }
+
+        String phone = etParentPhone.getText().toString().trim();
+        if (phone.isEmpty()) {
+            Toast.makeText(this, "Telefon numarası giriniz!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Numara formatla
+        if (!phone.startsWith("+") && !phone.startsWith("00")) {
+            if (phone.startsWith("0")) {
+                phone = "+9" + phone;
+            } else {
+                phone = "+90" + phone;
+            }
+        }
+
+        // SMS'i direkt MainActivity'den gönder (servis üzerinden değil)
+        try {
+            SmsManager sm;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                sm = getSystemService(SmsManager.class);
+            } else {
+                sm = SmsManager.getDefault();
+            }
+
+            if (sm == null) {
+                Toast.makeText(this, "SmsManager alınamadı!", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            String txt = "HEARTGUARD\nTEST MESAJI\nUygulama çalışıyor ✓";
+            ArrayList<String> parts = sm.divideMessage(txt);
+            sm.sendMultipartTextMessage(phone, null, parts, null, null);
+            tvStatus.setText("Test SMS gönderildi → " + phone);
+            Toast.makeText(this, "Test SMS gönderildi → " + phone, Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            tvStatus.setText("SMS HATASI: " + e.getMessage());
+            Toast.makeText(this, "SMS HATASI: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void startMonitoring() {
@@ -93,7 +145,8 @@ public class MainActivity extends AppCompatActivity {
         tvStatus.setText("İzleme durduruldu");
     }
 
-    private void requestPermissions() {
+    private void requestAllPermissions() {
+        java.util.List<String> needed = new java.util.ArrayList<>();
         String[] perms = {
             Manifest.permission.SEND_SMS,
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -101,7 +154,41 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
         };
-        ActivityCompat.requestPermissions(this, perms, 100);
+        for (String p : perms) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(p);
+            }
+        }
+        if (!needed.isEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), PERM_REQUEST);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == PERM_REQUEST) {
+            boolean smsDenied = false;
+            for (int i = 0; i < permissions.length; i++) {
+                if (permissions[i].equals(Manifest.permission.SEND_SMS)
+                        && results[i] != PackageManager.PERMISSION_GRANTED) {
+                    smsDenied = true;
+                }
+            }
+            if (smsDenied) {
+                // Kalıcı olarak reddedildiyse ayarlara yönlendir
+                new AlertDialog.Builder(this)
+                    .setTitle("SMS İzni Gerekli")
+                    .setMessage("HeartGuard acil durumlarda SMS gönderebilmek için SMS iznine ihtiyaç duyuyor. Ayarlardan izin verin.")
+                    .setPositiveButton("Ayarlara Git", (d, w) -> {
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    })
+                    .setNegativeButton("İptal", null)
+                    .show();
+            }
+        }
     }
 
     @Override
