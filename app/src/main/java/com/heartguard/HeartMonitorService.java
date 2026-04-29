@@ -211,18 +211,49 @@ public class HeartMonitorService extends Service {
         }
     }
 
+    // ✅ DÜZELTİLDİ: Android 12+ için SmsManager context'e bağlı kullanılıyor
     private void sendSms(int bpm, String reason) {
-        String phone = prefs.getString("parentPhone", "");
-        if (phone == null || phone.length() == 0) return;
+        String phone = prefs.getString("parentPhone", "").trim();
+        if (phone.isEmpty()) {
+            Log.e(TAG, "SMS hatasi: Telefon numarasi bos!");
+            updateStatus(bpm, "HATA: Telefon numarasi girilmemis!");
+            return;
+        }
+
+        // Numara başında + yoksa +90 ekle (Türkiye)
+        if (!phone.startsWith("+") && !phone.startsWith("00")) {
+            if (phone.startsWith("0")) {
+                phone = "+9" + phone; // 05xx -> +905xx
+            } else {
+                phone = "+90" + phone; // 5xx -> +905xx
+            }
+        }
+
         String time = new SimpleDateFormat("HH:mm:ss", new Locale("tr")).format(new Date());
         String txt = "HEARTGUARD\n" + reason + "\nSaat: " + time;
+
         try {
-            SmsManager sm = SmsManager.getDefault();
+            SmsManager sm;
+            // Android 12+ (API 31+) için context bazlı SmsManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                sm = getSystemService(SmsManager.class);
+            } else {
+                sm = SmsManager.getDefault();
+            }
+
+            if (sm == null) {
+                Log.e(TAG, "SMS hatasi: SmsManager null!");
+                updateStatus(bpm, "HATA: SmsManager alinamadi");
+                return;
+            }
+
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
-            updateStatus(bpm, "SMS gonderildi");
+            Log.d(TAG, "SMS gonderildi -> " + phone);
+            updateStatus(bpm, "SMS gonderildi -> " + phone);
         } catch (Exception e) {
             Log.e(TAG, "SMS hatasi: " + e.getMessage());
+            updateStatus(bpm, "SMS HATASI: " + e.getMessage());
         }
     }
 
