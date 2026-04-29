@@ -7,20 +7,17 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:spacing="8dp">
+        android:orientation="vertical">
 
-        <!-- Başlık -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="❤️ HeartGuard"
+            android:text="HeartGuard"
             android:textSize="24sp"
             android:textStyle="bold"
             android:gravity="center"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Nabız Göstergesi -->
         <TextView
             android:id="@+id/tvHeartRate"
             android:layout_width="match_parent"
@@ -32,30 +29,27 @@
             android:textColor="#E53935"
             android:layout_marginBottom="4dp"/>
 
-        <!-- Durum -->
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="İzleme başlatılmadı"
+            android:text="Izleme baslatilmadi"
             android:textSize="14sp"
             android:gravity="center"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Servis Switch -->
         <Switch
             android:id="@+id/swService"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="İzlemeyi Başlat/Durdur"
+            android:text="Izlemeyi Baslat/Durdur"
             android:textSize="16sp"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Cihaz Seçimi -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Bluetooth Cihazı"
+            android:text="Bluetooth Cihazi"
             android:textStyle="bold"
             android:textSize="14sp"
             android:layout_marginBottom="4dp"/>
@@ -64,7 +58,7 @@
             android:id="@+id/tvSelectedDevice"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Cihaz seçilmedi"
+            android:text="Cihaz secilmedi"
             android:textSize="13sp"
             android:textColor="#666666"
             android:layout_marginBottom="8dp"/>
@@ -73,21 +67,19 @@
             android:id="@+id/btnSelectDevice"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Cihaz Tara ve Seç"
+            android:text="Cihaz Tara ve Sec"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Ayırıcı -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="#DDDDDD"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Çocuk Adı -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Çocuğun Adı"
+            android:text="Cocugun Adi"
             android:textStyle="bold"
             android:textSize="14sp"
             android:layout_marginBottom="4dp"/>
@@ -96,15 +88,14 @@
             android:id="@+id/etChildName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Örn: Ayşe"
+            android:hint="Orn: Ayse"
             android:inputType="textPersonName"
             android:layout_marginBottom="12dp"/>
 
-        <!-- Ebeveyn Telefonu -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Ebeveyn Telefon Numarası"
+            android:text="Ebeveyn Telefon Numarasi"
             android:textStyle="bold"
             android:textSize="14sp"
             android:layout_marginBottom="4dp"/>
@@ -113,15 +104,14 @@
             android:id="@+id/etParentPhone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Örn: 05551234567"
+            android:hint="Orn: 05551234567"
             android:inputType="phone"
             android:layout_marginBottom="12dp"/>
 
-        <!-- Üst Limit -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Üst Nabız Limiti (bpm)"
+            android:text="Ust Nabiz Limiti (bpm)"
             android:textStyle="bold"
             android:textSize="14sp"
             android:layout_marginBottom="4dp"/>
@@ -130,15 +120,14 @@
             android:id="@+id/etUpperLimit"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Örn: 160"
+            android:hint="Orn: 160"
             android:inputType="number"
             android:layout_marginBottom="12dp"/>
 
-        <!-- Alt Limit -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Alt Nabız Limiti (bpm)"
+            android:text="Alt Nabiz Limiti (bpm)"
             android:textStyle="bold"
             android:textSize="14sp"
             android:layout_marginBottom="4dp"/>
@@ -147,11 +136,10 @@
             android:id="@+id/etLowerLimit"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Örn: 40"
+            android:hint="Orn: 40"
             android:inputType="number"
             android:layout_marginBottom="16dp"/>
 
-        <!-- Butonlar -->
         <Button
             android:id="@+id/btnSave"
             android:layout_width="match_parent"
@@ -163,7 +151,7 @@
             android:id="@+id/btnTestSms"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Test SMS Gönder"
+            android:text="Test SMS Gonder"
             android:layout_marginBottom="16dp"/>
 
     </LinearLayout>
