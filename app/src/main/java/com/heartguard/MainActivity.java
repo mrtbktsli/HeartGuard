@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.telephony.SmsManager;
 import android.widget.*;
@@ -40,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
 
         loadSettings();
         requestAllPermissions();
+        requestBatteryOptimizationExemption();
 
         findViewById(R.id.btnSave).setOnClickListener(v -> saveSettings());
         findViewById(R.id.btnTestSms).setOnClickListener(v -> testSms());
@@ -47,6 +49,25 @@ public class MainActivity extends AppCompatActivity {
             if (checked) startMonitoring();
             else stopMonitoring();
         });
+    }
+
+    // Pil optimizasyonundan muaf tut - servisin durmaması için kritik!
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                new AlertDialog.Builder(this)
+                    .setTitle("Pil Optimizasyonu")
+                    .setMessage("HeartGuard'ın arka planda sürekli çalışabilmesi için pil optimizasyonunu kapatmanız gerekiyor. Şimdi kapatılsın mı?")
+                    .setPositiveButton("Evet, Kapat", (d, w) -> {
+                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    })
+                    .setNegativeButton("Hayır", null)
+                    .show();
+            }
+        }
     }
 
     private void loadSettings() {
@@ -75,11 +96,9 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, "Kaydedildi ✓", Toast.LENGTH_SHORT).show();
     }
 
-    // SMS iznini kontrol et ve direkt gönder (servise gerek yok)
     private void testSms() {
         saveSettings();
 
-        // Önce SMS izni var mı kontrol et
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "SMS izni yok! İzin veriliyor...", Toast.LENGTH_LONG).show();
@@ -94,7 +113,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Numara formatla
         if (!phone.startsWith("+") && !phone.startsWith("00")) {
             if (phone.startsWith("0")) {
                 phone = "+9" + phone;
@@ -103,7 +121,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // SMS'i direkt MainActivity'den gönder (servis üzerinden değil)
         try {
             SmsManager sm;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -176,7 +193,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             if (smsDenied) {
-                // Kalıcı olarak reddedildiyse ayarlara yönlendir
                 new AlertDialog.Builder(this)
                     .setTitle("SMS İzni Gerekli")
                     .setMessage("HeartGuard acil durumlarda SMS gönderebilmek için SMS iznine ihtiyaç duyuyor. Ayarlardan izin verin.")
