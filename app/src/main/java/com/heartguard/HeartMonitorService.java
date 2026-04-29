@@ -4,8 +4,6 @@ import android.app.*;
 import android.bluetooth.*;
 import android.bluetooth.le.*;
 import android.content.*;
-import android.location.Location;
-import android.location.LocationManager;
 import android.os.*;
 import android.telephony.SmsManager;
 import android.util.Log;
@@ -24,7 +22,6 @@ public class HeartMonitorService extends Service {
 
     private BluetoothLeScanner bleScanner;
     private BluetoothGatt bluetoothGatt;
-    private LocationManager locationManager;
     private SharedPreferences prefs;
     private Handler handler;
     private boolean scanning = false;
@@ -46,7 +43,6 @@ public class HeartMonitorService extends Service {
         super.onCreate();
         handler = new Handler(Looper.getMainLooper());
         prefs = getSharedPreferences("HeartGuard", MODE_PRIVATE);
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         createChannel();
     }
 
@@ -62,7 +58,7 @@ public class HeartMonitorService extends Service {
         }
         if ("TEST_SMS".equals(action)) {
             startForeground(NOTIF_ID, buildNotif("Test..."));
-            sendSms(99, "TEST mesaji");
+            sendSms(99, "TEST - Deneme mesaji");
             return START_NOT_STICKY;
         }
         startForeground(NOTIF_ID, buildNotif("Watch aranıyor..."));
@@ -91,9 +87,9 @@ public class HeartMonitorService extends Service {
         bleScanner = ba.getBluetoothLeScanner();
         if (bleScanner == null) return;
         ScanFilter filter = new ScanFilter.Builder()
-                .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
+            .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
         ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
         scanning = true;
         bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
         updateStatus(0, "Watch aranıyor...");
@@ -221,23 +217,12 @@ public class HeartMonitorService extends Service {
         String time = new SimpleDateFormat("HH:mm:ss", new Locale("tr")).format(new Date());
         String txt = "HEARTGUARD\n" + reason + "\nSaat: " + time;
         try {
-            Location loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            if (loc == null) {
-                loc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            }
-            if (loc != null) {
-                txt = txt + "\nKonum: maps.google.com/?q=" + loc.getLatitude() + "," + loc.getLongitude();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Konum: " + e.getMessage());
-        }
-        try {
             SmsManager sm = SmsManager.getDefault();
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
             updateStatus(bpm, "SMS gonderildi");
         } catch (Exception e) {
-            Log.e(TAG, "SMS: " + e.getMessage());
+            Log.e(TAG, "SMS hatasi: " + e.getMessage());
         }
     }
 
@@ -253,12 +238,12 @@ public class HeartMonitorService extends Service {
         Intent i = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("HeartGuard")
-                .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentIntent(pi)
-                .setOngoing(true)
-                .build();
+            .setContentTitle("HeartGuard")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentIntent(pi)
+            .setOngoing(true)
+            .build();
     }
 
     private void updateNotif(String text) {
