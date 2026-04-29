@@ -16,14 +16,20 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private EditText etParentPhone, etUpperLimit, etLowerLimit, etChildName;
-    private TextView tvStatus, tvHeartRate;
+    private TextView tvStatus, tvHeartRate, tvSelectedDevice;
     private Switch swService;
+    private Button btnSelectDevice;
     private SharedPreferences prefs;
     private static final int PERM_REQUEST = 100;
+
+    // Taranan cihazlar: MAC -> İsim
+    private final Map<String, String> foundDevices = new LinkedHashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,43 +37,101 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences("HeartGuard", MODE_PRIVATE);
-        etParentPhone = findViewById(R.id.etParentPhone);
-        etUpperLimit  = findViewById(R.id.etUpperLimit);
-        etLowerLimit  = findViewById(R.id.etLowerLimit);
-        etChildName   = findViewById(R.id.etChildName);
-        tvStatus      = findViewById(R.id.tvStatus);
-        tvHeartRate   = findViewById(R.id.tvHeartRate);
-        swService     = findViewById(R.id.swService);
+        etParentPhone   = findViewById(R.id.etParentPhone);
+        etUpperLimit    = findViewById(R.id.etUpperLimit);
+        etLowerLimit    = findViewById(R.id.etLowerLimit);
+        etChildName     = findViewById(R.id.etChildName);
+        tvStatus        = findViewById(R.id.tvStatus);
+        tvHeartRate     = findViewById(R.id.tvHeartRate);
+        tvSelectedDevice = findViewById(R.id.tvSelectedDevice);
+        swService       = findViewById(R.id.swService);
+        btnSelectDevice = findViewById(R.id.btnSelectDevice);
 
         loadSettings();
+        updateSelectedDeviceLabel();
         requestAllPermissions();
         requestBatteryOptimizationExemption();
 
         findViewById(R.id.btnSave).setOnClickListener(v -> saveSettings());
         findViewById(R.id.btnTestSms).setOnClickListener(v -> testSms());
+        btnSelectDevice.setOnClickListener(v -> startDeviceScan());
+
         swService.setOnCheckedChangeListener((btn, checked) -> {
             if (checked) startMonitoring();
             else stopMonitoring();
         });
     }
 
-    // Pil optimizasyonundan muaf tut - servisin durmaması için kritik!
-    private void requestBatteryOptimizationExemption() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                new AlertDialog.Builder(this)
-                    .setTitle("Pil Optimizasyonu")
-                    .setMessage("HeartGuard'ın arka planda sürekli çalışabilmesi için pil optimizasyonunu kapatmanız gerekiyor. Şimdi kapatılsın mı?")
-                    .setPositiveButton("Evet, Kapat", (d, w) -> {
-                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    })
-                    .setNegativeButton("Hayır", null)
-                    .show();
-            }
+    private void updateSelectedDeviceLabel() {
+        String mac = prefs.getString("selectedDeviceMac", "");
+        String name = prefs.getString("selectedDeviceName", "");
+        if (!mac.isEmpty() && !name.isEmpty()) {
+            tvSelectedDevice.setText("Seçili cihaz: " + name);
+        } else {
+            tvSelectedDevice.setText("Cihaz seçilmedi — ilk bulunan cihaza bağlanır");
         }
+    }
+
+    // Cihaz tarama başlat
+    private void startDeviceScan() {
+        foundDevices.clear();
+        tvStatus.setText("Cihazlar taranıyor (10 sn)...");
+        btnSelectDevice.setEnabled(false);
+
+        HeartMonitorService.setDeviceScanCallback(new HeartMonitorService.DeviceScanCallback() {
+            @Override
+            public void onDeviceFound(String name, String address) {
+                foundDevices.put(address, name);
+                tvStatus.setText("Bulunan: " + foundDevices.size() + " cihaz...");
+            }
+
+            @Override
+            public void onScanFinished() {
+                btnSelectDevice.setEnabled(true);
+                if (foundDevices.isEmpty()) {
+                    tvStatus.setText("Cihaz bulunamadı. Mi Band'i takın ve tekrar deneyin.");
+                } else {
+                    showDeviceSelectionDialog();
+                }
+            }
+        });
+
+        Intent i = new Intent(this, HeartMonitorService.class);
+        i.setAction("SCAN_DEVICES");
+        ContextCompat.startForegroundService(this, i);
+    }
+
+    private void showDeviceSelectionDialog() {
+        String[] names = new String[foundDevices.size() + 1];
+        String[] macs = new String[foundDevices.size() + 1];
+
+        int idx = 0;
+        for (Map.Entry<String, String> entry : foundDevices.entrySet()) {
+            macs[idx] = entry.getKey();
+            names[idx] = entry.getValue() + "\n" + entry.getKey();
+            idx++;
+        }
+        // Son seçenek: otomatik
+        names[idx] = "Otomatik (ilk bulunan)";
+        macs[idx] = "";
+
+        new AlertDialog.Builder(this)
+            .setTitle("Cihaz Seçin")
+            .setItems(names, (dialog, which) -> {
+                String selectedMac = macs[which];
+                String selectedName = which < foundDevices.size()
+                    ? foundDevices.get(selectedMac)
+                    : "Otomatik";
+
+                prefs.edit()
+                    .putString("selectedDeviceMac", selectedMac)
+                    .putString("selectedDeviceName", selectedName)
+                    .apply();
+
+                updateSelectedDeviceLabel();
+                tvStatus.setText("Cihaz seçildi: " + selectedName);
+            })
+            .show();
     }
 
     private void loadSettings() {
@@ -101,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "SMS izni yok! İzin veriliyor...", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "SMS izni yok!", Toast.LENGTH_LONG).show();
             ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.SEND_SMS}, PERM_REQUEST);
             return;
@@ -128,17 +192,15 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 sm = SmsManager.getDefault();
             }
-
             if (sm == null) {
                 Toast.makeText(this, "SmsManager alınamadı!", Toast.LENGTH_LONG).show();
                 return;
             }
-
-            String txt = "HEARTGUARD\nTEST MESAJI\nUygulama çalışıyor ✓";
+            String txt = "HEARTGUARD\nTEST MESAJI\nUygulama calisiyor";
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
-            tvStatus.setText("Test SMS gönderildi → " + phone);
-            Toast.makeText(this, "Test SMS gönderildi → " + phone, Toast.LENGTH_LONG).show();
+            tvStatus.setText("Test SMS gönderildi -> " + phone);
+            Toast.makeText(this, "Test SMS gönderildi!", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             tvStatus.setText("SMS HATASI: " + e.getMessage());
             Toast.makeText(this, "SMS HATASI: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -160,6 +222,24 @@ public class MainActivity extends AppCompatActivity {
         i.setAction("STOP");
         startService(i);
         tvStatus.setText("İzleme durduruldu");
+    }
+
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                new AlertDialog.Builder(this)
+                    .setTitle("Pil Optimizasyonu")
+                    .setMessage("HeartGuard'ın arka planda sürekli çalışabilmesi için pil optimizasyonunu kapatmanız gerekiyor.")
+                    .setPositiveButton("Evet, Kapat", (d, w) -> {
+                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    })
+                    .setNegativeButton("Hayır", null)
+                    .show();
+            }
+        }
     }
 
     private void requestAllPermissions() {
@@ -185,24 +265,20 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode == PERM_REQUEST) {
-            boolean smsDenied = false;
             for (int i = 0; i < permissions.length; i++) {
                 if (permissions[i].equals(Manifest.permission.SEND_SMS)
                         && results[i] != PackageManager.PERMISSION_GRANTED) {
-                    smsDenied = true;
+                    new AlertDialog.Builder(this)
+                        .setTitle("SMS İzni Gerekli")
+                        .setMessage("HeartGuard SMS gönderebilmek için SMS iznine ihtiyaç duyuyor.")
+                        .setPositiveButton("Ayarlara Git", (d, w) -> {
+                            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            intent.setData(Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        })
+                        .setNegativeButton("İptal", null)
+                        .show();
                 }
-            }
-            if (smsDenied) {
-                new AlertDialog.Builder(this)
-                    .setTitle("SMS İzni Gerekli")
-                    .setMessage("HeartGuard acil durumlarda SMS gönderebilmek için SMS iznine ihtiyaç duyuyor. Ayarlardan izin verin.")
-                    .setPositiveButton("Ayarlara Git", (d, w) -> {
-                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    })
-                    .setNegativeButton("İptal", null)
-                    .show();
             }
         }
     }
@@ -212,7 +288,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         HeartMonitorService.setUiCallback((bpm, status) ->
             runOnUiThread(() -> {
-                tvHeartRate.setText("Nabız: " + bpm + " bpm");
+                if (bpm > 0) tvHeartRate.setText("Nabız: " + bpm + " bpm");
                 tvStatus.setText(status);
             })
         );
