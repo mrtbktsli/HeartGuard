@@ -22,13 +22,11 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
     private EditText etParentPhone, etUpperLimit, etLowerLimit, etChildName;
-    private TextView tvStatus, tvHeartRate, tvSelectedDevice;
+    private TextView tvStatus, tvHeartRate;
     private Switch swService;
-    private Button btnSelectDevice;
     private SharedPreferences prefs;
     private static final int PERM_REQUEST = 100;
 
-    // Taranan cihazlar: MAC -> İsim
     private final Map<String, String> foundDevices = new LinkedHashMap<>();
 
     @Override
@@ -37,46 +35,48 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences("HeartGuard", MODE_PRIVATE);
-        etParentPhone   = findViewById(R.id.etParentPhone);
-        etUpperLimit    = findViewById(R.id.etUpperLimit);
-        etLowerLimit    = findViewById(R.id.etLowerLimit);
-        etChildName     = findViewById(R.id.etChildName);
-        tvStatus        = findViewById(R.id.tvStatus);
-        tvHeartRate     = findViewById(R.id.tvHeartRate);
-        tvSelectedDevice = findViewById(R.id.tvSelectedDevice);
-        swService       = findViewById(R.id.swService);
-        btnSelectDevice = findViewById(R.id.btnSelectDevice);
+        etParentPhone = findViewById(R.id.etParentPhone);
+        etUpperLimit  = findViewById(R.id.etUpperLimit);
+        etLowerLimit  = findViewById(R.id.etLowerLimit);
+        etChildName   = findViewById(R.id.etChildName);
+        tvStatus      = findViewById(R.id.tvStatus);
+        tvHeartRate   = findViewById(R.id.tvHeartRate);
+        swService     = findViewById(R.id.swService);
 
         loadSettings();
-        updateSelectedDeviceLabel();
         requestAllPermissions();
         requestBatteryOptimizationExemption();
 
         findViewById(R.id.btnSave).setOnClickListener(v -> saveSettings());
         findViewById(R.id.btnTestSms).setOnClickListener(v -> testSms());
-        btnSelectDevice.setOnClickListener(v -> startDeviceScan());
+        findViewById(R.id.btnSelectDevice).setOnClickListener(v -> startDeviceScan());
 
         swService.setOnCheckedChangeListener((btn, checked) -> {
             if (checked) startMonitoring();
             else stopMonitoring();
         });
+
+        updateSelectedDeviceLabel();
     }
 
     private void updateSelectedDeviceLabel() {
         String mac = prefs.getString("selectedDeviceMac", "");
         String name = prefs.getString("selectedDeviceName", "");
+        TextView tv = findViewById(R.id.tvSelectedDevice);
+        if (tv == null) return;
         if (!mac.isEmpty() && !name.isEmpty()) {
-            tvSelectedDevice.setText("Seçili cihaz: " + name);
+            tv.setText("Secili cihaz: " + name);
         } else {
-            tvSelectedDevice.setText("Cihaz seçilmedi — ilk bulunan cihaza bağlanır");
+            tv.setText("Cihaz secilmedi - ilk bulunan cihaza baglanir");
         }
     }
 
-    // Cihaz tarama başlat
     private void startDeviceScan() {
         foundDevices.clear();
         tvStatus.setText("Cihazlar taranıyor (10 sn)...");
-        btnSelectDevice.setEnabled(false);
+
+        Button btn = findViewById(R.id.btnSelectDevice);
+        if (btn != null) btn.setEnabled(false);
 
         HeartMonitorService.setDeviceScanCallback(new HeartMonitorService.DeviceScanCallback() {
             @Override
@@ -87,9 +87,10 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onScanFinished() {
-                btnSelectDevice.setEnabled(true);
+                Button b = findViewById(R.id.btnSelectDevice);
+                if (b != null) b.setEnabled(true);
                 if (foundDevices.isEmpty()) {
-                    tvStatus.setText("Cihaz bulunamadı. Mi Band'i takın ve tekrar deneyin.");
+                    tvStatus.setText("Cihaz bulunamadi. Mi Band'i takin ve tekrar deneyin.");
                 } else {
                     showDeviceSelectionDialog();
                 }
@@ -111,17 +112,15 @@ public class MainActivity extends AppCompatActivity {
             names[idx] = entry.getValue() + "\n" + entry.getKey();
             idx++;
         }
-        // Son seçenek: otomatik
         names[idx] = "Otomatik (ilk bulunan)";
         macs[idx] = "";
 
         new AlertDialog.Builder(this)
-            .setTitle("Cihaz Seçin")
+            .setTitle("Cihaz Secin")
             .setItems(names, (dialog, which) -> {
                 String selectedMac = macs[which];
                 String selectedName = which < foundDevices.size()
-                    ? foundDevices.get(selectedMac)
-                    : "Otomatik";
+                    ? foundDevices.get(selectedMac) : "Otomatik";
 
                 prefs.edit()
                     .putString("selectedDeviceMac", selectedMac)
@@ -129,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
                     .apply();
 
                 updateSelectedDeviceLabel();
-                tvStatus.setText("Cihaz seçildi: " + selectedName);
+                tvStatus.setText("Cihaz secildi: " + selectedName);
             })
             .show();
     }
@@ -148,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
         String lower = etLowerLimit.getText().toString().trim();
         String name  = etChildName.getText().toString().trim();
         if (phone.isEmpty() || upper.isEmpty() || lower.isEmpty()) {
-            Toast.makeText(this, "Tüm alanları doldurun!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Tum alanlari doldurun!", Toast.LENGTH_SHORT).show();
             return;
         }
         prefs.edit()
@@ -157,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
             .putInt("lowerLimit", Integer.parseInt(lower))
             .putString("childName", name)
             .apply();
-        Toast.makeText(this, "Kaydedildi ✓", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Kaydedildi", Toast.LENGTH_SHORT).show();
     }
 
     private void testSms() {
@@ -173,7 +172,7 @@ public class MainActivity extends AppCompatActivity {
 
         String phone = etParentPhone.getText().toString().trim();
         if (phone.isEmpty()) {
-            Toast.makeText(this, "Telefon numarası giriniz!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Telefon numarasi giriniz!", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -193,17 +192,16 @@ public class MainActivity extends AppCompatActivity {
                 sm = SmsManager.getDefault();
             }
             if (sm == null) {
-                Toast.makeText(this, "SmsManager alınamadı!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "SmsManager alinamadi!", Toast.LENGTH_LONG).show();
                 return;
             }
             String txt = "HEARTGUARD\nTEST MESAJI\nUygulama calisiyor";
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
-            tvStatus.setText("Test SMS gönderildi -> " + phone);
-            Toast.makeText(this, "Test SMS gönderildi!", Toast.LENGTH_LONG).show();
+            tvStatus.setText("Test SMS gonderildi -> " + phone);
+            Toast.makeText(this, "Test SMS gonderildi!", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             tvStatus.setText("SMS HATASI: " + e.getMessage());
-            Toast.makeText(this, "SMS HATASI: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -213,7 +211,7 @@ public class MainActivity extends AppCompatActivity {
         Intent i = new Intent(this, HeartMonitorService.class);
         i.setAction("START");
         ContextCompat.startForegroundService(this, i);
-        tvStatus.setText("İzleme aktif ✓");
+        tvStatus.setText("Izleme aktif");
     }
 
     private void stopMonitoring() {
@@ -221,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
         Intent i = new Intent(this, HeartMonitorService.class);
         i.setAction("STOP");
         startService(i);
-        tvStatus.setText("İzleme durduruldu");
+        tvStatus.setText("Izleme durduruldu");
     }
 
     private void requestBatteryOptimizationExemption() {
@@ -230,13 +228,13 @@ public class MainActivity extends AppCompatActivity {
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
                 new AlertDialog.Builder(this)
                     .setTitle("Pil Optimizasyonu")
-                    .setMessage("HeartGuard'ın arka planda sürekli çalışabilmesi için pil optimizasyonunu kapatmanız gerekiyor.")
+                    .setMessage("HeartGuard'in arka planda surekli calisabilmesi icin pil optimizasyonunu kapatmaniz gerekiyor.")
                     .setPositiveButton("Evet, Kapat", (d, w) -> {
                         Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                         intent.setData(Uri.parse("package:" + getPackageName()));
                         startActivity(intent);
                     })
-                    .setNegativeButton("Hayır", null)
+                    .setNegativeButton("Hayir", null)
                     .show();
             }
         }
@@ -262,33 +260,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
-        super.onRequestPermissionsResult(requestCode, permissions, results);
-        if (requestCode == PERM_REQUEST) {
-            for (int i = 0; i < permissions.length; i++) {
-                if (permissions[i].equals(Manifest.permission.SEND_SMS)
-                        && results[i] != PackageManager.PERMISSION_GRANTED) {
-                    new AlertDialog.Builder(this)
-                        .setTitle("SMS İzni Gerekli")
-                        .setMessage("HeartGuard SMS gönderebilmek için SMS iznine ihtiyaç duyuyor.")
-                        .setPositiveButton("Ayarlara Git", (d, w) -> {
-                            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                            intent.setData(Uri.parse("package:" + getPackageName()));
-                            startActivity(intent);
-                        })
-                        .setNegativeButton("İptal", null)
-                        .show();
-                }
-            }
-        }
-    }
-
-    @Override
     protected void onResume() {
         super.onResume();
         HeartMonitorService.setUiCallback((bpm, status) ->
             runOnUiThread(() -> {
-                if (bpm > 0) tvHeartRate.setText("Nabız: " + bpm + " bpm");
+                if (bpm > 0) tvHeartRate.setText("Nabiz: " + bpm + " bpm");
                 tvStatus.setText(status);
             })
         );
