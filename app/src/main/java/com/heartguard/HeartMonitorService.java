@@ -26,16 +26,29 @@ public class HeartMonitorService extends Service {
     private Handler handler;
     private boolean scanning = false;
     private boolean connected = false;
-    private long lastAlert = 0;
-    private static final long COOLDOWN = 300000L;
+
+    // Durum takibi
+    private boolean wasHigh = false;
+    private boolean wasLow = false;
+
     private static UiCallback uiCallback;
+    private static DeviceScanCallback deviceScanCallback;
 
     public interface UiCallback {
         void onUpdate(int bpm, String status);
     }
 
+    public interface DeviceScanCallback {
+        void onDeviceFound(String name, String address);
+        void onScanFinished();
+    }
+
     public static void setUiCallback(UiCallback cb) {
         uiCallback = cb;
+    }
+
+    public static void setDeviceScanCallback(DeviceScanCallback cb) {
+        deviceScanCallback = cb;
     }
 
     @Override
@@ -52,19 +65,68 @@ public class HeartMonitorService extends Service {
         if (intent != null && intent.getAction() != null) {
             action = intent.getAction();
         }
-        if ("STOP".equals(action)) {
-            stopAll();
-            return START_NOT_STICKY;
+
+        switch (action) {
+            case "STOP":
+                stopAll();
+                return START_NOT_STICKY;
+
+            case "TEST_SMS":
+                startForeground(NOTIF_ID, buildNotif("Test SMS..."));
+                sendSms("TEST - HeartGuard calisiyor", 0);
+                return START_NOT_STICKY;
+
+            case "SCAN_DEVICES":
+                startForeground(NOTIF_ID, buildNotif("Cihazlar taranıyor..."));
+                scanForDevices();
+                return START_NOT_STICKY;
+
+            default:
+                startForeground(NOTIF_ID, buildNotif("Cihaz aranıyor..."));
+                startScan();
+                return START_STICKY;
         }
-        if ("TEST_SMS".equals(action)) {
-            startForeground(NOTIF_ID, buildNotif("Test..."));
-            sendSms(99, "TEST - Deneme mesaji");
-            return START_NOT_STICKY;
-        }
-        startForeground(NOTIF_ID, buildNotif("Watch aranıyor..."));
-        startScan();
-        return START_STICKY;
     }
+
+    private void scanForDevices() {
+        BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
+        if (bm == null) return;
+        BluetoothAdapter ba = bm.getAdapter();
+        if (ba == null || !ba.isEnabled()) return;
+
+        bleScanner = ba.getBluetoothLeScanner();
+        if (bleScanner == null) return;
+
+        ScanFilter filter = new ScanFilter.Builder()
+            .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
+        ScanSettings settings = new ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+
+        scanning = true;
+        bleScanner.startScan(Collections.singletonList(filter), settings, deviceListCallback);
+
+        handler.postDelayed(() -> {
+            stopScan();
+            if (deviceScanCallback != null) {
+                handler.post(() -> deviceScanCallback.onScanFinished());
+            }
+            stopSelf();
+        }, 10000);
+    }
+
+    private final ScanCallback deviceListCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int type, ScanResult result) {
+            BluetoothDevice device = result.getDevice();
+            String name = device.getName();
+            String address = device.getAddress();
+            if (name == null) name = "Bilinmeyen (" + address + ")";
+            if (deviceScanCallback != null) {
+                final String finalName = name;
+                handler.post(() -> deviceScanCallback.onDeviceFound(finalName, address));
+            }
+        }
+    };
 
     private void stopAll() {
         stopScan();
@@ -79,35 +141,33 @@ public class HeartMonitorService extends Service {
         BluetoothAdapter ba = bm.getAdapter();
         if (ba == null || !ba.isEnabled()) {
             updateStatus(0, "Bluetooth kapali!");
-            handler.postDelayed(new Runnable() {
-                @Override public void run() { startScan(); }
-            }, 30000);
+            handler.postDelayed(this::startScan, 30000);
             return;
         }
         bleScanner = ba.getBluetoothLeScanner();
         if (bleScanner == null) return;
+
         ScanFilter filter = new ScanFilter.Builder()
             .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
         ScanSettings settings = new ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+
         scanning = true;
         bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
-        updateStatus(0, "Watch aranıyor...");
-        handler.postDelayed(new Runnable() {
-            @Override public void run() {
-                if (scanning && !connected) {
-                    stopScan();
-                    handler.postDelayed(new Runnable() {
-                        @Override public void run() { startScan(); }
-                    }, 5000);
-                }
+        updateStatus(0, "Cihaz aranıyor...");
+
+        handler.postDelayed(() -> {
+            if (scanning && !connected) {
+                stopScan();
+                handler.postDelayed(this::startScan, 5000);
             }
         }, 30000);
     }
 
     private void stopScan() {
         if (bleScanner != null && scanning) {
-            try { bleScanner.stopScan(scanCallback); } catch (Exception e) { Log.e(TAG, "stopScan: " + e.getMessage()); }
+            try { bleScanner.stopScan(scanCallback); } catch (Exception e) { }
+            try { bleScanner.stopScan(deviceListCallback); } catch (Exception e) { }
             scanning = false;
         }
     }
@@ -115,19 +175,23 @@ public class HeartMonitorService extends Service {
     private final ScanCallback scanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int type, ScanResult result) {
+            String selectedMac = prefs.getString("selectedDeviceMac", "");
+            if (!selectedMac.isEmpty() && !result.getDevice().getAddress().equals(selectedMac)) {
+                return;
+            }
             stopScan();
             connectDevice(result.getDevice());
         }
+
         @Override
         public void onScanFailed(int errorCode) {
-            handler.postDelayed(new Runnable() {
-                @Override public void run() { startScan(); }
-            }, 30000);
+            handler.postDelayed(HeartMonitorService.this::startScan, 30000);
         }
     };
 
     private void connectDevice(BluetoothDevice device) {
-        updateStatus(0, "Baglanıyor...");
+        String name = device.getName() != null ? device.getName() : device.getAddress();
+        updateStatus(0, "Baglanıyor: " + name);
         bluetoothGatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE);
     }
 
@@ -150,9 +214,7 @@ public class HeartMonitorService extends Service {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connected = false;
                 disconnectGatt();
-                handler.postDelayed(new Runnable() {
-                    @Override public void run() { startScan(); }
-                }, 5000);
+                handler.postDelayed(HeartMonitorService.this::startScan, 5000);
             }
         }
 
@@ -188,44 +250,53 @@ public class HeartMonitorService extends Service {
         int upper = prefs.getInt("upperLimit", 160);
         int lower = prefs.getInt("lowerLimit", 40);
         String name = prefs.getString("childName", "Cocuk");
-        String status;
-        boolean alert = false;
-        String alertMsg = "";
+
         if (bpm > upper) {
-            status = "YUKSEK: " + bpm + " bpm";
-            alert = true;
-            alertMsg = "YUKSEK NABIZ: " + name + " = " + bpm + " bpm (Limit: " + upper + ")";
+            String status = "YUKSEK: " + bpm + " bpm";
+            updateStatus(bpm, status);
+            updateNotif(status);
+            if (!wasHigh) {
+                wasHigh = true;
+                wasLow = false;
+                sendSms("YUKSEK NABIZ\n" + name + ": " + bpm + " bpm\nUst limit: " + upper + " bpm", bpm);
+            }
+
         } else if (bpm < lower && bpm > 0) {
-            status = "DUSUK: " + bpm + " bpm";
-            alert = true;
-            alertMsg = "DUSUK NABIZ: " + name + " = " + bpm + " bpm (Limit: " + lower + ")";
-        } else {
-            status = "Normal: " + bpm + " bpm";
-        }
-        updateStatus(bpm, status);
-        updateNotif(status);
-        long now = System.currentTimeMillis();
-        if (alert && now - lastAlert > COOLDOWN) {
-            lastAlert = now;
-            sendSms(bpm, alertMsg);
+            String status = "DUSUK: " + bpm + " bpm";
+            updateStatus(bpm, status);
+            updateNotif(status);
+            if (!wasLow) {
+                wasLow = true;
+                wasHigh = false;
+                sendSms("DUSUK NABIZ\n" + name + ": " + bpm + " bpm\nAlt limit: " + lower + " bpm", bpm);
+            }
+
+        } else if (bpm > 0) {
+            String status = "Normal: " + bpm + " bpm";
+            updateStatus(bpm, status);
+            updateNotif(status);
+            if (wasHigh) {
+                wasHigh = false;
+                sendSms("NORMALE DONDU\n" + name + ": " + bpm + " bpm\n(Yuksek nabiz gecti)", bpm);
+            } else if (wasLow) {
+                wasLow = false;
+                sendSms("NORMALE DONDU\n" + name + ": " + bpm + " bpm\n(Dusuk nabiz gecti)", bpm);
+            }
         }
     }
 
-    // ✅ DÜZELTİLDİ: Android 12+ için SmsManager context'e bağlı kullanılıyor
-    private void sendSms(int bpm, String reason) {
+    private void sendSms(String reason, int bpm) {
         String phone = prefs.getString("parentPhone", "").trim();
         if (phone.isEmpty()) {
-            Log.e(TAG, "SMS hatasi: Telefon numarasi bos!");
             updateStatus(bpm, "HATA: Telefon numarasi girilmemis!");
             return;
         }
 
-        // Numara başında + yoksa +90 ekle (Türkiye)
         if (!phone.startsWith("+") && !phone.startsWith("00")) {
             if (phone.startsWith("0")) {
-                phone = "+9" + phone; // 05xx -> +905xx
+                phone = "+9" + phone;
             } else {
-                phone = "+90" + phone; // 5xx -> +905xx
+                phone = "+90" + phone;
             }
         }
 
@@ -234,23 +305,19 @@ public class HeartMonitorService extends Service {
 
         try {
             SmsManager sm;
-            // Android 12+ (API 31+) için context bazlı SmsManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 sm = getSystemService(SmsManager.class);
             } else {
                 sm = SmsManager.getDefault();
             }
-
             if (sm == null) {
-                Log.e(TAG, "SMS hatasi: SmsManager null!");
                 updateStatus(bpm, "HATA: SmsManager alinamadi");
                 return;
             }
-
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
             Log.d(TAG, "SMS gonderildi -> " + phone);
-            updateStatus(bpm, "SMS gonderildi -> " + phone);
+            updateStatus(bpm, "SMS gonderildi");
         } catch (Exception e) {
             Log.e(TAG, "SMS hatasi: " + e.getMessage());
             updateStatus(bpm, "SMS HATASI: " + e.getMessage());
@@ -284,11 +351,7 @@ public class HeartMonitorService extends Service {
 
     private void updateStatus(final int bpm, final String status) {
         if (uiCallback != null) {
-            handler.post(new Runnable() {
-                @Override public void run() {
-                    uiCallback.onUpdate(bpm, status);
-                }
-            });
+            handler.post(() -> uiCallback.onUpdate(bpm, status));
         }
     }
 
