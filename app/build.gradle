@@ -1,14 +1,13 @@
 plugins {
     id 'com.android.application'
 }
-
 android {
     namespace 'com.heartguard'
     compileSdk 34
     defaultConfig {
         applicationId "com.heartguard"
         minSdk 21
-        targetSdk 34
+        targetSdk 32
         versionCode 1
         versionName "1.0"
     }
@@ -22,7 +21,6 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 }
-
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.core:core:1.9.0'
