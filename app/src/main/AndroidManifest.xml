@@ -27,8 +27,7 @@
         </activity>
         <service
             android:name=".HeartMonitorService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice"/>
+            android:exported="false"/>
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
