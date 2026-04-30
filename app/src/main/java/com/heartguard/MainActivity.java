@@ -2,12 +2,23 @@ package com.heartguard;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.ParcelUuid;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.telephony.SmsManager;
@@ -16,8 +27,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -28,6 +41,9 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences prefs;
     private static final int PERM_REQUEST = 100;
     private final Map<String, String> foundDevices = new LinkedHashMap<>();
+    private BluetoothLeScanner bleScanner;
+    private Handler handler = new Handler(Looper.getMainLooper());
+    private static final UUID HR_SERVICE = UUID.fromString("0000180D-0000-1000-8000-00805f9b34fb");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,8 +51,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences("HeartGuard", MODE_PRIVATE);
-
-        // View'ları bağla
         etParentPhone    = (EditText) findViewById(R.id.etParentPhone);
         etUpperLimit     = (EditText) findViewById(R.id.etUpperLimit);
         etLowerLimit     = (EditText) findViewById(R.id.etLowerLimit);
@@ -64,7 +78,6 @@ public class MainActivity extends AppCompatActivity {
     private void updateSelectedDeviceLabel() {
         String mac = prefs.getString("selectedDeviceMac", "");
         String name = prefs.getString("selectedDeviceName", "");
-        if (tvSelectedDevice == null) return;
         if (!mac.isEmpty() && !name.isEmpty()) {
             tvSelectedDevice.setText("Secili: " + name);
         } else {
@@ -72,35 +85,66 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Bluetooth taraması direkt Activity'den yapılıyor
     private void startDeviceScan() {
         foundDevices.clear();
-        tvStatus.setText("Taranıyor...");
+        tvStatus.setText("Taranıyor (10 sn)...");
         btnSelectDevice.setEnabled(false);
 
-        HeartMonitorService.setDeviceScanCallback(new HeartMonitorService.DeviceScanCallback() {
-            @Override
-            public void onDeviceFound(String name, String address) {
+        BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        if (bm == null) {
+            tvStatus.setText("Bluetooth desteklenmiyor");
+            btnSelectDevice.setEnabled(true);
+            return;
+        }
+        BluetoothAdapter ba = bm.getAdapter();
+        if (ba == null || !ba.isEnabled()) {
+            tvStatus.setText("Bluetooth kapali! Acin ve tekrar deneyin.");
+            btnSelectDevice.setEnabled(true);
+            return;
+        }
+
+        bleScanner = ba.getBluetoothLeScanner();
+        if (bleScanner == null) {
+            tvStatus.setText("BLE tarayici alinamadi");
+            btnSelectDevice.setEnabled(true);
+            return;
+        }
+
+        ScanFilter filter = new ScanFilter.Builder()
+            .setServiceUuid(new ParcelUuid(HR_SERVICE)).build();
+        ScanSettings settings = new ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+
+        bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
+
+        // 10 saniye sonra durdur
+        handler.postDelayed(() -> {
+            if (bleScanner != null) {
+                try { bleScanner.stopScan(scanCallback); } catch (Exception e) {}
+                bleScanner = null;
+            }
+            btnSelectDevice.setEnabled(true);
+            if (foundDevices.isEmpty()) {
+                tvStatus.setText("Cihaz bulunamadi. Mi Band'i takin ve tekrar deneyin.");
+            } else {
+                showDeviceSelectionDialog();
+            }
+        }, 10000);
+    }
+
+    private final ScanCallback scanCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            String address = result.getDevice().getAddress();
+            String name = result.getDevice().getName();
+            if (name == null) name = "Bilinmeyen (" + address + ")";
+            if (!foundDevices.containsKey(address)) {
                 foundDevices.put(address, name);
                 tvStatus.setText("Bulunan: " + foundDevices.size() + " cihaz");
             }
-
-            @Override
-            public void onScanFinished() {
-                runOnUiThread(() -> {
-                    btnSelectDevice.setEnabled(true);
-                    if (foundDevices.isEmpty()) {
-                        tvStatus.setText("Cihaz bulunamadi");
-                    } else {
-                        showDeviceSelectionDialog();
-                    }
-                });
-            }
-        });
-
-        Intent i = new Intent(this, HeartMonitorService.class);
-        i.setAction("SCAN_DEVICES");
-        ContextCompat.startForegroundService(this, i);
-    }
+        }
+    };
 
     private void showDeviceSelectionDialog() {
         int size = foundDevices.size();
@@ -113,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
             names[idx] = entry.getValue();
             idx++;
         }
-        names[size] = "Otomatik";
+        names[size] = "Otomatik (ilk bulunan)";
         macs[size] = "";
 
         new AlertDialog.Builder(this)
@@ -263,5 +307,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         HeartMonitorService.setUiCallback(null);
+        if (bleScanner != null) {
+            try { bleScanner.stopScan(scanCallback); } catch (Exception e) {}
+            bleScanner = null;
+        }
     }
 }
