@@ -16,14 +16,18 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private EditText etParentPhone, etUpperLimit, etLowerLimit, etChildName;
-    private TextView tvStatus, tvHeartRate;
+    private TextView tvStatus, tvHeartRate, tvSelectedDevice;
     private Switch swService;
+    private Button btnSelectDevice;
     private SharedPreferences prefs;
     private static final int PERM_REQUEST = 100;
+    private final Map<String, String> foundDevices = new LinkedHashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,24 +35,100 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences("HeartGuard", MODE_PRIVATE);
-        etParentPhone = findViewById(R.id.etParentPhone);
-        etUpperLimit  = findViewById(R.id.etUpperLimit);
-        etLowerLimit  = findViewById(R.id.etLowerLimit);
-        etChildName   = findViewById(R.id.etChildName);
-        tvStatus      = findViewById(R.id.tvStatus);
-        tvHeartRate   = findViewById(R.id.tvHeartRate);
-        swService     = findViewById(R.id.swService);
+
+        // View'ları bağla
+        etParentPhone    = (EditText) findViewById(R.id.etParentPhone);
+        etUpperLimit     = (EditText) findViewById(R.id.etUpperLimit);
+        etLowerLimit     = (EditText) findViewById(R.id.etLowerLimit);
+        etChildName      = (EditText) findViewById(R.id.etChildName);
+        tvStatus         = (TextView) findViewById(R.id.tvStatus);
+        tvHeartRate      = (TextView) findViewById(R.id.tvHeartRate);
+        tvSelectedDevice = (TextView) findViewById(R.id.tvSelectedDevice);
+        swService        = (Switch) findViewById(R.id.swService);
+        btnSelectDevice  = (Button) findViewById(R.id.btnSelectDevice);
 
         loadSettings();
+        updateSelectedDeviceLabel();
         requestAllPermissions();
         requestBatteryOptimizationExemption();
 
-        findViewById(R.id.btnSave).setOnClickListener(v -> saveSettings());
-        findViewById(R.id.btnTestSms).setOnClickListener(v -> testSms());
+        ((Button) findViewById(R.id.btnSave)).setOnClickListener(v -> saveSettings());
+        ((Button) findViewById(R.id.btnTestSms)).setOnClickListener(v -> testSms());
+        btnSelectDevice.setOnClickListener(v -> startDeviceScan());
         swService.setOnCheckedChangeListener((btn, checked) -> {
             if (checked) startMonitoring();
             else stopMonitoring();
         });
+    }
+
+    private void updateSelectedDeviceLabel() {
+        String mac = prefs.getString("selectedDeviceMac", "");
+        String name = prefs.getString("selectedDeviceName", "");
+        if (tvSelectedDevice == null) return;
+        if (!mac.isEmpty() && !name.isEmpty()) {
+            tvSelectedDevice.setText("Secili: " + name);
+        } else {
+            tvSelectedDevice.setText("Cihaz secilmedi");
+        }
+    }
+
+    private void startDeviceScan() {
+        foundDevices.clear();
+        tvStatus.setText("Taranıyor...");
+        btnSelectDevice.setEnabled(false);
+
+        HeartMonitorService.setDeviceScanCallback(new HeartMonitorService.DeviceScanCallback() {
+            @Override
+            public void onDeviceFound(String name, String address) {
+                foundDevices.put(address, name);
+                tvStatus.setText("Bulunan: " + foundDevices.size() + " cihaz");
+            }
+
+            @Override
+            public void onScanFinished() {
+                runOnUiThread(() -> {
+                    btnSelectDevice.setEnabled(true);
+                    if (foundDevices.isEmpty()) {
+                        tvStatus.setText("Cihaz bulunamadi");
+                    } else {
+                        showDeviceSelectionDialog();
+                    }
+                });
+            }
+        });
+
+        Intent i = new Intent(this, HeartMonitorService.class);
+        i.setAction("SCAN_DEVICES");
+        ContextCompat.startForegroundService(this, i);
+    }
+
+    private void showDeviceSelectionDialog() {
+        int size = foundDevices.size();
+        String[] names = new String[size + 1];
+        String[] macs = new String[size + 1];
+
+        int idx = 0;
+        for (Map.Entry<String, String> entry : foundDevices.entrySet()) {
+            macs[idx] = entry.getKey();
+            names[idx] = entry.getValue();
+            idx++;
+        }
+        names[size] = "Otomatik";
+        macs[size] = "";
+
+        new AlertDialog.Builder(this)
+            .setTitle("Cihaz Secin")
+            .setItems(names, (dialog, which) -> {
+                String mac = macs[which];
+                String name = names[which];
+                prefs.edit()
+                    .putString("selectedDeviceMac", mac)
+                    .putString("selectedDeviceName", name)
+                    .apply();
+                updateSelectedDeviceLabel();
+                tvStatus.setText("Secildi: " + name);
+            })
+            .show();
     }
 
     private void loadSettings() {
@@ -81,7 +161,6 @@ public class MainActivity extends AppCompatActivity {
         saveSettings();
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "SMS izni yok!", Toast.LENGTH_LONG).show();
             ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.SEND_SMS}, PERM_REQUEST);
             return;
@@ -105,15 +184,11 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 sm = SmsManager.getDefault();
             }
-            if (sm == null) {
-                Toast.makeText(this, "SmsManager alinamadi!", Toast.LENGTH_LONG).show();
-                return;
-            }
+            if (sm == null) return;
             String txt = "HEARTGUARD\nTEST MESAJI\nUygulama calisiyor";
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
             tvStatus.setText("Test SMS gonderildi");
-            Toast.makeText(this, "Test SMS gonderildi!", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             tvStatus.setText("SMS HATASI: " + e.getMessage());
         }
