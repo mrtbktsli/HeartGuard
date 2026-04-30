@@ -50,6 +50,8 @@ public class HeartMonitorService extends Service {
         handler = new Handler(Looper.getMainLooper());
         prefs = getSharedPreferences("HeartGuard", MODE_PRIVATE);
         createChannel();
+        // Android 14 için onCreate'de startForeground çağır
+        startForeground(NOTIF_ID, buildNotif("HeartGuard basliyor..."));
     }
 
     @Override
@@ -63,11 +65,11 @@ public class HeartMonitorService extends Service {
                 stopAll();
                 return START_NOT_STICKY;
             case "TEST_SMS":
-                startForeground(NOTIF_ID, buildNotif("Test SMS..."));
+                updateNotif("Test SMS...");
                 sendSms("TEST - HeartGuard calisiyor", 0);
                 return START_NOT_STICKY;
             default:
-                startForeground(NOTIF_ID, buildNotif("Cihaz aranıyor..."));
+                updateNotif("Cihaz aranıyor...");
                 startScan();
                 return START_STICKY;
         }
@@ -93,20 +95,16 @@ public class HeartMonitorService extends Service {
         if (bleScanner == null) return;
 
         String selectedMac = prefs.getString("selectedDeviceMac", "");
-
         ScanSettings settings = new ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
 
         scanning = true;
 
-        // Seçili cihaz varsa MAC ile tara, yoksa HR UUID ile tara
         if (!selectedMac.isEmpty()) {
-            // MAC adresiyle filtrele
             ScanFilter filter = new ScanFilter.Builder()
                 .setDeviceAddress(selectedMac).build();
             bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
         } else {
-            // HR UUID ile tara
             ScanFilter filter = new ScanFilter.Builder()
                 .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
             bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
@@ -163,7 +161,7 @@ public class HeartMonitorService extends Service {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 connected = true;
                 g.discoverServices();
-                updateStatus(0, "Baglandi - servisler bulunuyor...");
+                updateStatus(0, "Baglandi!");
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connected = false;
                 disconnectGatt();
@@ -173,7 +171,6 @@ public class HeartMonitorService extends Service {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt g, int status) {
-            // Önce standart HR servisini dene
             BluetoothGattService svc = g.getService(HR_SERVICE);
             if (svc != null) {
                 BluetoothGattCharacteristic ch = svc.getCharacteristic(HR_CHAR);
@@ -188,8 +185,7 @@ public class HeartMonitorService extends Service {
                     return;
                 }
             }
-            // HR servisi bulunamadı
-            updateStatus(0, "HR servisi bulunamadi - cihaz desteklemiyor olabilir");
+            updateStatus(0, "HR servisi bulunamadi");
         }
 
         @Override
