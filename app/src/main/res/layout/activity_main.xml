@@ -22,7 +22,7 @@
             android:id="@+id/tvHeartRate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Nabız: -- bpm"
+            android:text="Nabiz: -- bpm"
             android:textSize="28sp"
             android:textStyle="bold"
             android:gravity="center"
@@ -44,36 +44,6 @@
             android:layout_height="wrap_content"
             android:text="Izlemeyi Baslat/Durdur"
             android:textSize="16sp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Bluetooth Cihazi"
-            android:textStyle="bold"
-            android:textSize="14sp"
-            android:layout_marginBottom="4dp"/>
-
-        <TextView
-            android:id="@+id/tvSelectedDevice"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cihaz secilmedi"
-            android:textSize="13sp"
-            android:textColor="#666666"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnSelectDevice"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cihaz Tara ve Sec"
-            android:layout_marginBottom="16dp"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#DDDDDD"
             android:layout_marginBottom="16dp"/>
 
         <TextView
