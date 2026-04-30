@@ -26,8 +26,6 @@ public class HeartMonitorService extends Service {
     private Handler handler;
     private boolean scanning = false;
     private boolean connected = false;
-
-    // Durum takibi
     private boolean wasHigh = false;
     private boolean wasLow = false;
 
@@ -43,13 +41,8 @@ public class HeartMonitorService extends Service {
         void onScanFinished();
     }
 
-    public static void setUiCallback(UiCallback cb) {
-        uiCallback = cb;
-    }
-
-    public static void setDeviceScanCallback(DeviceScanCallback cb) {
-        deviceScanCallback = cb;
-    }
+    public static void setUiCallback(UiCallback cb) { uiCallback = cb; }
+    public static void setDeviceScanCallback(DeviceScanCallback cb) { deviceScanCallback = cb; }
 
     @Override
     public void onCreate() {
@@ -65,68 +58,20 @@ public class HeartMonitorService extends Service {
         if (intent != null && intent.getAction() != null) {
             action = intent.getAction();
         }
-
         switch (action) {
             case "STOP":
                 stopAll();
                 return START_NOT_STICKY;
-
             case "TEST_SMS":
                 startForeground(NOTIF_ID, buildNotif("Test SMS..."));
                 sendSms("TEST - HeartGuard calisiyor", 0);
                 return START_NOT_STICKY;
-
-            case "SCAN_DEVICES":
-                startForeground(NOTIF_ID, buildNotif("Cihazlar taranıyor..."));
-                scanForDevices();
-                return START_NOT_STICKY;
-
             default:
                 startForeground(NOTIF_ID, buildNotif("Cihaz aranıyor..."));
                 startScan();
                 return START_STICKY;
         }
     }
-
-    private void scanForDevices() {
-        BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
-        if (bm == null) return;
-        BluetoothAdapter ba = bm.getAdapter();
-        if (ba == null || !ba.isEnabled()) return;
-
-        bleScanner = ba.getBluetoothLeScanner();
-        if (bleScanner == null) return;
-
-        ScanFilter filter = new ScanFilter.Builder()
-            .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
-        ScanSettings settings = new ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
-
-        scanning = true;
-        bleScanner.startScan(Collections.singletonList(filter), settings, deviceListCallback);
-
-        handler.postDelayed(() -> {
-            stopScan();
-            if (deviceScanCallback != null) {
-                handler.post(() -> deviceScanCallback.onScanFinished());
-            }
-            stopSelf();
-        }, 10000);
-    }
-
-    private final ScanCallback deviceListCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int type, ScanResult result) {
-            BluetoothDevice device = result.getDevice();
-            String name = device.getName();
-            String address = device.getAddress();
-            if (name == null) name = "Bilinmeyen (" + address + ")";
-            if (deviceScanCallback != null) {
-                final String finalName = name;
-                handler.post(() -> deviceScanCallback.onDeviceFound(finalName, address));
-            }
-        }
-    };
 
     private void stopAll() {
         stopScan();
@@ -147,13 +92,26 @@ public class HeartMonitorService extends Service {
         bleScanner = ba.getBluetoothLeScanner();
         if (bleScanner == null) return;
 
-        ScanFilter filter = new ScanFilter.Builder()
-            .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
+        String selectedMac = prefs.getString("selectedDeviceMac", "");
+
         ScanSettings settings = new ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
 
         scanning = true;
-        bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
+
+        // Seçili cihaz varsa MAC ile tara, yoksa HR UUID ile tara
+        if (!selectedMac.isEmpty()) {
+            // MAC adresiyle filtrele
+            ScanFilter filter = new ScanFilter.Builder()
+                .setDeviceAddress(selectedMac).build();
+            bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
+        } else {
+            // HR UUID ile tara
+            ScanFilter filter = new ScanFilter.Builder()
+                .setServiceUuid(new android.os.ParcelUuid(HR_SERVICE)).build();
+            bleScanner.startScan(Collections.singletonList(filter), settings, scanCallback);
+        }
+
         updateStatus(0, "Cihaz aranıyor...");
 
         handler.postDelayed(() -> {
@@ -167,7 +125,6 @@ public class HeartMonitorService extends Service {
     private void stopScan() {
         if (bleScanner != null && scanning) {
             try { bleScanner.stopScan(scanCallback); } catch (Exception e) { }
-            try { bleScanner.stopScan(deviceListCallback); } catch (Exception e) { }
             scanning = false;
         }
     }
@@ -175,10 +132,6 @@ public class HeartMonitorService extends Service {
     private final ScanCallback scanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int type, ScanResult result) {
-            String selectedMac = prefs.getString("selectedDeviceMac", "");
-            if (!selectedMac.isEmpty() && !result.getDevice().getAddress().equals(selectedMac)) {
-                return;
-            }
             stopScan();
             connectDevice(result.getDevice());
         }
@@ -210,7 +163,7 @@ public class HeartMonitorService extends Service {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 connected = true;
                 g.discoverServices();
-                updateStatus(0, "Baglandi");
+                updateStatus(0, "Baglandi - servisler bulunuyor...");
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connected = false;
                 disconnectGatt();
@@ -220,16 +173,23 @@ public class HeartMonitorService extends Service {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt g, int status) {
+            // Önce standart HR servisini dene
             BluetoothGattService svc = g.getService(HR_SERVICE);
-            if (svc == null) return;
-            BluetoothGattCharacteristic ch = svc.getCharacteristic(HR_CHAR);
-            if (ch == null) return;
-            g.setCharacteristicNotification(ch, true);
-            BluetoothGattDescriptor desc = ch.getDescriptor(CCCD);
-            if (desc != null) {
-                desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                g.writeDescriptor(desc);
+            if (svc != null) {
+                BluetoothGattCharacteristic ch = svc.getCharacteristic(HR_CHAR);
+                if (ch != null) {
+                    g.setCharacteristicNotification(ch, true);
+                    BluetoothGattDescriptor desc = ch.getDescriptor(CCCD);
+                    if (desc != null) {
+                        desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                        g.writeDescriptor(desc);
+                    }
+                    updateStatus(0, "Nabiz izleniyor...");
+                    return;
+                }
             }
+            // HR servisi bulunamadı
+            updateStatus(0, "HR servisi bulunamadi - cihaz desteklemiyor olabilir");
         }
 
         @Override
@@ -260,7 +220,6 @@ public class HeartMonitorService extends Service {
                 wasLow = false;
                 sendSms("YUKSEK NABIZ\n" + name + ": " + bpm + " bpm\nUst limit: " + upper + " bpm", bpm);
             }
-
         } else if (bpm < lower && bpm > 0) {
             String status = "DUSUK: " + bpm + " bpm";
             updateStatus(bpm, status);
@@ -270,7 +229,6 @@ public class HeartMonitorService extends Service {
                 wasHigh = false;
                 sendSms("DUSUK NABIZ\n" + name + ": " + bpm + " bpm\nAlt limit: " + lower + " bpm", bpm);
             }
-
         } else if (bpm > 0) {
             String status = "Normal: " + bpm + " bpm";
             updateStatus(bpm, status);
@@ -291,7 +249,6 @@ public class HeartMonitorService extends Service {
             updateStatus(bpm, "HATA: Telefon numarasi girilmemis!");
             return;
         }
-
         if (!phone.startsWith("+") && !phone.startsWith("00")) {
             if (phone.startsWith("0")) {
                 phone = "+9" + phone;
@@ -299,10 +256,8 @@ public class HeartMonitorService extends Service {
                 phone = "+90" + phone;
             }
         }
-
         String time = new SimpleDateFormat("HH:mm:ss", new Locale("tr")).format(new Date());
         String txt = "HEARTGUARD\n" + reason + "\nSaat: " + time;
-
         try {
             SmsManager sm;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -310,16 +265,11 @@ public class HeartMonitorService extends Service {
             } else {
                 sm = SmsManager.getDefault();
             }
-            if (sm == null) {
-                updateStatus(bpm, "HATA: SmsManager alinamadi");
-                return;
-            }
+            if (sm == null) return;
             ArrayList<String> parts = sm.divideMessage(txt);
             sm.sendMultipartTextMessage(phone, null, parts, null, null);
-            Log.d(TAG, "SMS gonderildi -> " + phone);
             updateStatus(bpm, "SMS gonderildi");
         } catch (Exception e) {
-            Log.e(TAG, "SMS hatasi: " + e.getMessage());
             updateStatus(bpm, "SMS HATASI: " + e.getMessage());
         }
     }
