@@ -289,6 +289,8 @@ public class HeartMonitorService extends Service {
     }
 
     @Override
+    public void setUiCallback(Object callback) {}
+
     public IBinder onBind(Intent intent) { return null; }
 
     @Override
