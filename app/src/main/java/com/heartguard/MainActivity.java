@@ -286,18 +286,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        HeartMonitorService.setUiCallback((bpm, status) ->
-            runOnUiThread(() -> {
-                if (bpm > 0) tvHeartRate.setText("Nabiz: " + bpm + " bpm");
-                tvStatus.setText(status);
-            })
-        );
+        
+            
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        HeartMonitorService.setUiCallback(null);
+        
         if (bleScanner != null) {
             try { bleScanner.stopScan(scanCallback); } catch (Exception e) {}
             bleScanner = null;
