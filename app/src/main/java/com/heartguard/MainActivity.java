@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
         swService.setOnCheckedChangeListener((btn, checked) -> {
             if (checked) startMonitoring();
             else stopMonitoring();
-        });
+        
     }
 
     private void updateSelectedDeviceLabel() {
@@ -286,7 +286,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        HeartMonitorService.setUiCallback((bpm, status) ->
+        // removed
             runOnUiThread(() -> {
                 if (bpm > 0) tvHeartRate.setText("Nabiz: " + bpm + " bpm");
                 tvStatus.setText(status);
@@ -297,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        HeartMonitorService.setUiCallback(null);
+        
         if (bleScanner != null) {
             try { bleScanner.stopScan(scanCallback); } catch (Exception e) {}
             bleScanner = null;
