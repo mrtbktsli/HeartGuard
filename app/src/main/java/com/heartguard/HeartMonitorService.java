@@ -126,11 +126,6 @@ public class HeartMonitorService extends Service {
         if (authChar == null) return;
 
         gatt.setCharacteristicNotification(authChar, true);
-        BluetoothGattDescriptor desc = authChar.getDescriptor(CCCD_UUID);
-        if (desc != null) {
-            desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            gatt.writeDescriptor(desc);
-        }
 
         handler.postDelayed(() -> {
             authStep = 1;
