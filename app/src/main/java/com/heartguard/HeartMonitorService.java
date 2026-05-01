@@ -288,7 +288,6 @@ public class HeartMonitorService extends Service {
         if (nm != null) nm.createNotificationChannel(ch);
     }
 
-    @Override
     public void setUiCallback(Object callback) {}
 
     public IBinder onBind(Intent intent) { return null; }
