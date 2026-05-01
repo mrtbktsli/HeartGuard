@@ -114,6 +114,18 @@ public class HeartMonitorService extends Service {
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             Log.d(TAG, "Descriptor yazildi: " + status);
+            String duuid = descriptor.getCharacteristic().getUuid().toString();
+            if (duuid.contains("0051") && authStep == 0) {
+                authStep = 1;
+                BluetoothGattCharacteristic ac = descriptor.getCharacteristic();
+                new java.security.SecureRandom().nextBytes(authRandomNumber);
+                byte[] cmd = new byte[18];
+                cmd[0] = 0x01; cmd[1] = 0x00;
+                System.arraycopy(authRandomNumber, 0, cmd, 2, 16);
+                ac.setValue(cmd);
+                gatt.writeCharacteristic(ac);
+                Log.d(TAG, "Auth adim 1 descriptor sonrasi");
+            }
         }
     };private void startAuthentication(BluetoothGatt gatt) {
         BluetoothGattService service = gatt.getService(XIAOMI_SERVICE_UUID);
