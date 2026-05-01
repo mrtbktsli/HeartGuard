@@ -17,7 +17,7 @@ public class HeartMonitorService extends Service {
 
     private static final String TAG = "HeartGuard";
     private static final String MI_BAND_MAC = "D0:62:2C:0C:F8:50";
-    private static final String AUTH_KEY_HEX = "7249aebe0799b254c4b9d099a4a7cdf8";private static final UUID XIAOMI_SERVICE_UUID = UUID.fromString("0000fe95-0000-1000-8000-00805f9b34fb");
+    private static final String AUTH_KEY_HEX = "54ef5d1a1dc8d1feed718e7fa7def0dd";private static final UUID XIAOMI_SERVICE_UUID = UUID.fromString("0000fe95-0000-1000-8000-00805f9b34fb");
     private static final UUID XIAOMI_AUTH_UUID = UUID.fromString("00000051-0000-1000-8000-00805f9b34fb");
     private static final UUID HR_SERVICE_UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb");
     private static final UUID HR_MEASUREMENT_UUID = UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb");
